@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Login</title>
+<link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <h1>Login</h1>
+  <form id="loginForm">
+    <label for="userId">User ID:</label>
+    <input type="text" id="userId" name="userId" required />
+    <label for="password">Password:</label>
+    <input type="password" id="password" name="password" required minlength="6" />
+    <div id="rememberDiv">
+      <label>
+        <input type="checkbox" id="rememberCheckbox" />
+        Remember this userID on this computer
+      </label>
+    </div>
+    <button type="submit">Login</button>
+  </form>
+  <p>Don't have an account? <a href="register.html">Register here</a></p>
+
+  <script>
+    const form = document.getElementById('loginForm');
+
+    async function getUserIP() {
+      try{
+        const res = await fetch('https://api.ipify.org?format=json');
+        const data = await res.json();
+        return data.ip;
+      } catch {
+        return "unknown"
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      const ip = await getUserIP();
+      const savedUserID = localStorage.getItem(`userId_${ip}`);
+      if (savedUserID) {
+        form.userId.value = savedUserID;
+        document.getElementById('rememberDiv').style.display = 'block';
+        document.getElementById('rememberCheckbox').checked = true;
+      }
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const userId = form.userId.value.trim();
+      const password = form.password.value.trim();
+      if (password.length < 6) {
+        alert('Password must be at least 6 characters');
+        return;
+      }
+
+      const ip = await getUserIP();
+      if (document.getElementById('rememberCheckbox').checked) {
+        localStorage.setItem(`userId_${ip}`, userId);
+      } else {
+        localStorage.removeItem(`userId_${ip}`);
+      }
+
+      try {
+        const res = await fetch('/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, password })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          alert(`Login successful. Role: ${data.role}`);
+          if (data.role === 'admin') {
+            window.location.href = '/admin/event-management.html';
+          } else {
+           window.location.href = '/index.html';
+          }
+        } else {
+          const data = await res.json();
+          alert('Login failed: ' + data.message);
+        }
+      } catch (error) {
+        alert('Login error: ' + error.message);
+      }
+    });
+  </script>
+</body>
+</html>

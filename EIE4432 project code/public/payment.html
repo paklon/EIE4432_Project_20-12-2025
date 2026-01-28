@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Payment Page</title>
+<link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+<h1>Payment Details</h1>
+<div id="summary"></div>
+
+<form id="paymentForm">
+  <label for="cardNumber">Card Number</label>
+  <input type="text" id="cardNumber" name="cardNumber" required minlength="16" maxlength="16" />
+
+  <label for="expiryDate">Expiry Date</label>
+  <input type="month" id="expiryDate" name="expiryDate" required />
+
+  <label for="cvv">CVV</label>
+  <input type="text" id="cvv" name="cvv" required minlength="3" maxlength="4" />
+
+  <button type="submit">Pay Now</button>
+  <button id="backBtn">Back</button>
+</form>
+
+<script>
+  async function checkLogin() {
+    const res = await fetch('/auth/status');
+    if (!res.ok) window.location.href = '/login.html';
+  }
+  checkLogin();
+
+  const eventId = sessionStorage.getItem('currentEventId');
+  const selectedSeats = JSON.parse(sessionStorage.getItem('selectedSeats')) || [];
+
+  async function loadSummary() {
+    const res = await fetch('/events/' + eventId);
+    const event = await res.json();
+
+    let seatDetails = await Promise.all(selectedSeats.map(seatId =>
+      fetch('/seats/' + eventId).then(r => r.json()).then(seats => seats.find(s => s._id === seatId))
+    ));
+
+    const totalCost = seatDetails.reduce((acc, seat) => seat ? acc + seat.price : acc, 0);
+    const summaryDiv = document.getElementById('summary');
+    summaryDiv.innerHTML = `
+      <h2>Booking Summary</h2>
+      <p><strong>Event:</strong> ${event.title}</p>
+      <p><strong>Seats:</strong> ${seatDetails.filter(Boolean).map(s => s.seatNumber).join(', ')}</p>
+      <p><strong>Total Cost:</strong> $${totalCost}</p>`;
+  }
+
+
+  loadSummary();
+
+  async function updateBookedSeats() {
+    const eventId = sessionStorage.getItem('currentEventId');
+    const res = await fetch(`/seats/${eventId}`);
+    const seats = await res.json();
+
+    const seatMap = document.querySelector('#seatMap') || null;
+    if (!seatMap) return; 
+
+    seats.forEach(seat => {
+      const rect = document.querySelector(`rect[data-id="${seat._id}"]`);
+      if (rect) {
+        if (seat.status === 'booked') {
+          rect.classList.remove('available', 'selected');
+          rect.classList.add('booked');
+          rect.style.cursor = 'not-allowed';
+        } else if (seat.status === 'available') {
+          rect.classList.remove('booked', 'selected');
+          rect.classList.add('available');
+          rect.style.cursor = 'pointer';
+        }
+      }
+    });
+  }
+
+  document.getElementById('paymentForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('/bookings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId, seatIds: selectedSeats, paymentInfo: {} })
+      });
+      if (res.ok) {
+        alert('Payment successful. Booking confirmed.');
+
+        const evRes = await fetch('/events/' + eventId);
+        const eventInfo = await evRes.json();
+
+        sessionStorage.setItem('purchasedEvent', JSON.stringify(eventInfo));
+
+        window.location.href = '/ticket.html';
+      } else {
+        const data = await res.json();
+        alert('Payment failed: ' + data.message);
+      }
+    } catch (err) {
+      alert('Payment error: ' + err.message);
+    }
+  });
+
+  document.getElementById('backBtn').addEventListener('click', () => {
+    window.location.href = '/seat-selection.html';
+  });
+</script>
+</body>
+</html>

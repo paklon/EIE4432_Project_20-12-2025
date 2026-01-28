@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Event Dashboard</title>
+<link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+<nav class="navbar">
+  <a href="index.html" class="nav-link">Dashboard</a>
+  <a href="profile.html" class="nav-link">Profile</a>
+  <a href="booking-history.html" class="nav-link">Booking History</a>
+  <a href="ticket.html" class="nav-link">My Tickets</a>
+</nav>
+  <h1>Upcoming Events</h1>
+
+  <input type="text" id="search" placeholder="Search events..." autocomplete="off" />
+  <button id="filterBtn">Filter</button>
+  <button id="searchBtn">Search</button>
+  <div id="autocomplete-list"></div>
+  <button id="logoutBtn">Logout</button>
+
+  <div id="events-list"></div>
+
+  <div id="filterModal" class="modal">
+    <div class="modal-content">
+      <h3>Filter Events</h3>
+      <label for="filterDate">Date (YYYY-MM-DD):</label>
+      <input type="date" id="filterDate" />
+      <label for="filterTitle">Title:</label>
+      <input type="text" id="filterTitle" placeholder="Event title" />
+      <label for="filterVenue">Venue:</label>
+      <input type="text" id="filterVenue" placeholder="Venue" />
+      <label for="filterDescription">Description:</label>
+      <input type="text" id="filterDescription" placeholder="Description" />
+      <div class="modal-buttons">
+        <button id="cancelFilterBtn">Cancel</button>
+        <button id="applyFilterBtn">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    
+  document.addEventListener('DOMContentLoaded', () => {
+    const currentPath = window.location.pathname.split('/').pop();
+    document.querySelectorAll('.nav-link').forEach(link => {
+      if (link.getAttribute('href') === currentPath) {
+        link.classList.add('active');
+      }
+    });
+  });
+
+    async function checkLogin() {
+      const res = await fetch('/auth/status');
+      if (!res.ok) window.location.href = '/login.html';
+    }
+    checkLogin();
+
+    const eventsList = document.getElementById('events-list');
+    const searchInput = document.getElementById('search');
+    const autocompleteList = document.getElementById('autocomplete-list');
+    const filterBtn = document.getElementById('filterBtn');
+    const searchBtn = document.getElementById('searchBtn');
+    const filterModal = document.getElementById('filterModal');
+    const cancelFilterBtn = document.getElementById('cancelFilterBtn');
+    const applyFilterBtn = document.getElementById('applyFilterBtn');
+
+    let allEventTitles = [];
+
+    async function preloadEventTitles() {
+      let res = await fetch('/events');
+      if (!res.ok) return;
+      let events = await res.json();
+      allEventTitles = events.map(e => e.title);
+    }
+    preloadEventTitles();
+
+    let currentFilters = {
+      date: '',
+      title: '',
+      venue: '',
+      description: ''
+    };
+
+    async function loadEvents() {
+      let res = await fetch('/events');
+      if (!res.ok) {
+        eventsList.innerHTML = 'Failed to load events.';
+        return;
+      }
+      let events = await res.json();
+
+      events = events.filter(e => {
+        let match = true;
+        if (currentFilters.date) {
+          match = match && (new Date(e.dateTime).toISOString().slice(0,10) === currentFilters.date);
+        }
+        if (currentFilters.title) {
+          match = match && e.title.toLowerCase().includes(currentFilters.title.toLowerCase());
+        }
+        if (currentFilters.venue) {
+          match = match && e.venue.toLowerCase().includes(currentFilters.venue.toLowerCase());
+        }
+        if (currentFilters.description) {
+          match = match && e.description.toLowerCase().includes(currentFilters.description.toLowerCase());
+        }
+        return match;
+      });
+
+      eventsList.innerHTML = '';
+      for (let event of events) {
+        const seatsRes = await fetch(`/seats/${event._id}`);
+        const seats = seatsRes.ok ? await seatsRes.json() : [];
+        const totalSeats = seats.length;
+        const bookedSeats = seats.filter(s => s.status === 'booked').length;
+        const availableSeats = totalSeats - bookedSeats;
+
+        let div = document.createElement('div');
+        div.classList.add('event-card');
+        div.innerHTML = `
+          <h2>${event.title}</h2>
+          <img src="/images/${event.coverImage}" alt="${event.title}" style="width:300px;" />
+          <p><b>Date:</b> ${new Date(event.dateTime).toLocaleString()}</p>
+          <p><b>Venue:</b> ${event.venue}</p>
+          <p>${event.description}</p>
+          <p><b>Ticket sales:</b> ${bookedSeats} / ${totalSeats}</p>
+          <p><b>Available seats:</b> ${availableSeats}</p>
+          <button onclick="bookSeats('${event._id}')">Book Now</button>
+        `;
+        eventsList.appendChild(div);
+      }
+    }
+
+    searchInput.addEventListener('input', function() {
+      const val = searchInput.value.trim().toLowerCase();
+      autocompleteList.innerHTML = '';
+      if (val.length < 2) return;
+      const suggestions = allEventTitles.filter(title => title.toLowerCase().includes(val));
+      suggestions.slice(0, 8).forEach(title => {
+        const div = document.createElement('div');
+        div.classList.add('autocomplete-item');
+        div.textContent = title;
+        div.addEventListener('mousedown', function(e) {
+          searchInput.value = title;
+          autocompleteList.innerHTML = '';
+          currentFilters = {date:'', title: title, venue:'', description:''};
+          loadEvents();
+        });
+        autocompleteList.appendChild(div);
+      });
+    });
+
+    document.addEventListener('click', function(e) {
+      if (!autocompleteList.contains(e.target) && e.target !== searchInput) {
+        autocompleteList.innerHTML = '';
+      }
+    });
+
+    filterBtn.addEventListener('click', () => {
+      document.getElementById('filterDate').value = currentFilters.date || '';
+      document.getElementById('filterTitle').value = currentFilters.title || '';
+      document.getElementById('filterVenue').value = currentFilters.venue || '';
+      document.getElementById('filterDescription').value = currentFilters.description || '';
+      filterModal.style.display = 'block';
+    });
+
+    cancelFilterBtn.addEventListener('click', () => {
+      filterModal.style.display = 'none';
+    });
+
+    applyFilterBtn.addEventListener('click', () => {
+      currentFilters.date = document.getElementById('filterDate').value;
+      currentFilters.title = document.getElementById('filterTitle').value.trim();
+      currentFilters.venue = document.getElementById('filterVenue').value.trim();
+      currentFilters.description = document.getElementById('filterDescription').value.trim();
+      filterModal.style.display = 'none';
+      loadEvents();
+    });
+
+    searchBtn.addEventListener('click', () => {
+      const val = searchInput.value.trim();
+      currentFilters = {date: '', title: val, venue: '', description: ''};
+      loadEvents();
+      autocompleteList.innerHTML = '';
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await fetch('/auth/logout', { method: 'POST' });
+      window.location.href = '/login.html';
+    });
+
+    function bookSeats(eventId) {
+      sessionStorage.setItem('currentEventId', eventId);
+      window.location.href = '/seat-selection.html';
+    }
+
+    window.onclick = function(event) {
+      if (event.target == filterModal) {
+        filterModal.style.display = 'none';
+      }
+    }
+
+    loadEvents();
+  </script>
+</body>
+</html>

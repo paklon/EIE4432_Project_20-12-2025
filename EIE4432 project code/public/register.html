@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Register</title>
+<link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <h1>Register</h1>
+  <form id="registerForm" enctype="multipart/form-data">
+    <label for="userId">User ID:</label><br>
+    <input type="text" id="userId" name="userId" required /><br>
+    <label for="password">Password:</label><br>
+    <input type="password" id="password" name="password" required minlength="6" /><br>
+    <label for="nickname">Nickname:</label><br>
+    <input type="text" id="nickname" name="nickname" /><br>
+    <label for="email">Email:</label><br>
+    <input type="email" id="email" name="email" required /><br>
+    <label>Gender:</label><br>
+    <select id="gender" name="gender" required>
+      <option value="">Select</option>
+      <option>Male</option>
+      <option>Female</option>
+      <option>Other</option>
+    </select><br>
+    <label for="birthdate">Birthdate:</label><br>
+    <input type="date" id="birthdate" name="birthdate" required /><br>
+    <label for="profileImage">Profile Image:</label><br>
+    <input type="file" id="profileImage" name="profileImage" accept="image/*" /><br>
+    <button type="submit">Register</button><br>
+  </form>
+  <p>Already have an account? <a href="login.html">Login here</a></p>
+
+  <script>
+    const form = document.getElementById('registerForm');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (form.password.value.length < 6) {
+        alert('Password must be at least 6 characters');
+        return;
+      }
+      const formData = new FormData(form);
+      try {
+        const res = await fetch('/auth/register', {
+          method: 'POST',
+          body: formData
+        });
+        if (res.ok) {
+          alert('Registration successful. Please login.');
+          window.location.href = '/login.html';
+        } else {
+          const data = await res.json();
+          alert('Registration failed: ' + data.message);
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    });
+  </script>
+</body>
+</html>

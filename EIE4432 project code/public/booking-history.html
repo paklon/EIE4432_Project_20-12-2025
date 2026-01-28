@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Booking History</title>
+<link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+<nav class="navbar">
+  <a href="index.html" class="nav-link">Dashboard</a>
+  <a href="profile.html" class="nav-link">Profile</a>
+  <a href="booking-history.html" class="nav-link">Booking History</a>
+  <a href="ticket.html" class="nav-link">My Tickets</a>
+</nav>
+<h1>My Booking History</h1>
+
+<section id="bookingHistory">
+</section>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const currentPath = window.location.pathname.split('/').pop();
+    document.querySelectorAll('.nav-link').forEach(link => {
+      if (link.getAttribute('href') === currentPath) {
+        link.classList.add('active');
+      }
+    });
+  });
+
+  async function checkLogin() {
+    const res = await fetch('/auth/status');
+    if (!res.ok) window.location.href = '/login.html';
+  }
+  checkLogin();
+
+  async function loadBookingHistory() {
+    const res = await fetch('/bookings/history');
+    if (!res.ok) return;
+    const bookings = await res.json();
+    const section = document.getElementById('bookingHistory');
+
+    bookings.forEach(b => {
+      const div = document.createElement('div');
+      div.innerHTML = `
+        <p><strong>Event:</strong> ${b.eventId.title}</p>
+        <p><strong>Seats:</strong> ${b.seats.map(s => s.seatNumber).join(', ')}</p>
+        <p><strong>Total Cost:</strong> $${b.totalCost}</p>
+        <p><strong>Date:</strong> ${new Date(b.transactionDate).toLocaleString()}</p>
+        <hr />
+      `;
+      section.appendChild(div);
+    });
+  }
+  loadBookingHistory();
+</script>
+</body>
+</html>

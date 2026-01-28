@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>User Profile</title>
+<link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+<nav class="navbar">
+  <a href="index.html" class="nav-link">Dashboard</a>
+  <a href="profile.html" class="nav-link">Profile</a>
+  <a href="booking-history.html" class="nav-link">Booking History</a>
+  <a href="ticket.html" class="nav-link">My Tickets</a>
+</nav>
+<h1>My Profile</h1>
+
+<img id="profileDisplay" src="/uploads/default-profile.png" alt="Profile Image" style="max-width:150px; max-height:150px; display:block; margin-bottom:10px;">
+<form id="profileForm" enctype="multipart/form-data">
+  <label>Nickname:</label><br />
+  <input type="text" name="nickname" id="nickname" /><br />
+  <label>Email:</label><br />
+  <input type="email" name="email" id="email" /><br />
+  <label>Password (leave blank to keep):</label><br />
+  <input type="password" name="password" id="password" /><br />
+  <label>Profile Image:</label><br />
+  <input type="file" name="profileImage" id="profileImage" accept="image/*" /><br />
+  <button type="submit">Update Profile</button>
+</form>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const currentPath = window.location.pathname.split('/').pop();
+    document.querySelectorAll('.nav-link').forEach(link => {
+      if (link.getAttribute('href') === currentPath) {
+        link.classList.add('active');
+      }
+    });
+  });
+
+  async function checkLogin() {
+    const res = await fetch('/auth/status');
+    if (!res.ok) window.location.href = '/login.html';
+  }
+  checkLogin();
+
+  async function loadProfile() {
+    const res = await fetch('/auth/profile');
+    if (!res.ok) {
+      alert('Please login again.');
+      window.location.href = '/login.html';
+      return;
+    }
+    const data = await res.json();
+    console.log('User profile data:', data);
+    document.getElementById('nickname').value = data.nickname || '';
+    document.getElementById('email').value = data.email || '';
+
+    const profileImgElem = document.getElementById('profileDisplay');
+    if (data.profileImage) {
+      profileImgElem.src = `images/${data.profileImage}`;
+    } else {
+      profileImgElem.src = '/images/default-profile.png'; 
+    }
+  }
+  loadProfile();
+
+  document.getElementById('profileForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = document.getElementById('profileForm');
+    const formData = new FormData(form);
+    try {
+      const res = await fetch('/auth/profile', {
+        method: 'PUT',
+        body: formData
+      });
+      if (res.ok) {
+        alert('Profile updated successfully');
+      } else {
+        const data = await res.json();
+        alert('Update failed: ' + data.message);
+      }
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  });
+
+
+</script>
+</body>
+</html>

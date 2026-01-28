@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Seat Selection</title>
+<link rel="stylesheet" href="/css/styles.css" />
+<style>
+  #seatMapContainer {
+    width: 90%;
+    height: 600px;     
+    overflow-y: auto;   
+    border: 1px solid #ccc;
+  }
+  svg {
+    width: 100%;
+    height: auto;        
+  }
+  rect.available {
+    fill: green;
+    cursor: pointer;
+  }
+  rect.booked {
+    fill: red;
+    cursor: not-allowed;
+  }
+  rect.selected {
+    fill: blue;
+  }
+</style>
+</head>
+<body>
+  <h1>Select Your Seats</h1>
+  <div id="eventInfo"></div>
+
+  <label for="floorSelect">Select Floor:</label>
+  <select id="floorSelect">
+    <option value="1">Floor 1</option>
+    <option value="2">Floor 2</option>
+  </select>
+
+  <div id="seatMapContainer">
+    <svg id="seatMap"></svg>
+  </div>
+
+  <p>Total Price: $<span id="totalPrice">0</span></p>
+  <button id="continueBtn" disabled>Continue to Payment</button>
+  <button id="backBtn">Back</button>
+
+<script>
+  async function checkLogin() {
+    const res = await fetch('/auth/status');
+    if (!res.ok) window.location.href = '/login.html';
+  }
+  checkLogin();
+
+  const seatMap = document.getElementById('seatMap');
+  const totalPriceEl = document.getElementById('totalPrice');
+  const continueBtn = document.getElementById('continueBtn');
+  const backBtn = document.getElementById('backBtn');
+  const eventInfo = document.getElementById('eventInfo');
+  const floorSelect = document.getElementById('floorSelect');
+
+  let selectedSeats = [];
+  let seatPrices = {};
+
+  const eventId = sessionStorage.getItem('currentEventId');
+
+  async function loadEvent() {
+    const res = await fetch(`/events/${eventId}`);
+    if (!res.ok) {
+      eventInfo.textContent = 'Failed to load event info.';
+      return;
+    }
+    const event = await res.json();
+    eventInfo.innerHTML = `
+      <h2>${event.title}</h2>
+      <p>${event.description}</p>
+      <p><b>Date & Time:</b> ${new Date(event.dateTime).toLocaleString()}</p>
+      <p><b>Venue:</b> ${event.venue}</p>
+    `;
+  }
+
+  async function loadSeats() {
+    const floor = floorSelect.value;
+    const res = await fetch(`/seats/${eventId}?floor=${floor}`);
+    if (!res.ok) {
+      alert('Failed to load seats');
+      return;
+    }
+    const seats = await res.json();
+
+    const maxRowChar = seats.reduce((max, seat) => {
+      const rowCharCode = seat.seatNumber.charCodeAt(0);
+      return rowCharCode > max ? rowCharCode : max;
+    }, 65); 
+
+    const totalRows = maxRowChar - 65 + 1;
+    const rowHeight = 40; 
+    const svgHeight = totalRows * rowHeight + 20; 
+
+    seatMap.setAttribute('height', svgHeight);
+    seatMap.innerHTML = '';
+    seatPrices = {};
+
+    seats.forEach(seat => {
+      const row = seat.seatNumber.charCodeAt(0) - 65;
+      const col = parseInt(seat.seatNumber.substring(1)) - 1;
+
+      const rect = document.createElementNS("http://www.w3.org/2000/svg", 'rect');
+      rect.setAttribute('x', col * 40 + 10);
+      rect.setAttribute('y', row * rowHeight + 10);
+      rect.setAttribute('width', 35);
+      rect.setAttribute('height', 35);
+
+      rect.setAttribute('data-id', seat._id);
+      rect.setAttribute('data-price', seat.price);
+
+      if (seat.status === 'available') {
+        rect.classList.add('available');
+        rect.style.cursor = 'pointer';
+        rect.addEventListener('click', () => onSeatClick(rect));
+      } else {
+        rect.classList.add('booked');
+        rect.style.cursor = 'not-allowed';
+      }
+      seatMap.appendChild(rect);
+
+      const text = document.createElementNS("http://www.w3.org/2000/svg", 'text');
+      text.textContent = seat.seatNumber;
+      text.setAttribute('x', col * 40 + 27);
+      text.setAttribute('y', row * rowHeight + 43);
+      text.setAttribute('text-anchor', 'middle');
+      text.setAttribute('font-size', '14px');
+      seatMap.appendChild(text);
+
+      seatPrices[seat._id] = seat.price;
+    });
+    updatePriceAndButton();
+  }
+
+  function onSeatClick(rect) {
+    const seatId = rect.getAttribute('data-id');
+    if (rect.classList.contains('selected')) {
+      rect.classList.remove('selected');
+      rect.classList.add('available');
+      selectedSeats = selectedSeats.filter(id => id !== seatId);
+    } else {
+      rect.classList.remove('available');
+      rect.classList.add('selected');
+      selectedSeats.push(seatId);
+    }
+    updatePriceAndButton();
+  }
+
+  function updatePriceAndButton() {
+    let total = 0;
+    selectedSeats.forEach(id => {
+      total += seatPrices[id] || 0;
+    });
+    totalPriceEl.textContent = total;
+    continueBtn.disabled = selectedSeats.length === 0;
+    sessionStorage.setItem('selectedSeats', JSON.stringify(selectedSeats));
+  }
+
+  continueBtn.addEventListener('click', () => {
+    window.location.href = '/payment.html';
+  });
+
+  backBtn.addEventListener('click', () => {
+    window.location.href = '/index.html';
+  });
+
+  floorSelect.addEventListener('change', () => {
+    loadSeats();
+  });
+
+  loadEvent();
+  loadSeats();
+</script>
+</body>
+</html>
